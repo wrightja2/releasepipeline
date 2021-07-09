@@ -1,0 +1,42 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+          - name: Download kubeadm and its dependiences
+            get_url: 
+              url: http://files.cloudthat.training/devops/kubernetes-ckad/kubeadm-script-v1.18.sh
+              dest: /home/ubuntu/kubeadm-script-v1.18.sh
+              
+          - name: Run the bash script
+            become: yes
+            become_user: root
+            shell: bash /home/ubuntu/kubeadm-script-v1.18.sh
+            register: installout
+
+          - name: Start the cluster
+            become: yes
+            become_user: root
+            shell: "kubeadm reset -f && kubeadm init"
+            register: initout
+          - name: create .kube directory
+            become: yes
+            become_user: ubuntu
+            file:
+              path: /home/ubuntu/.kube
+              state: directory
+              mode: 0666
+          - name: Installing CNI network
+            become: yes
+            become_user: root
+            shell: sudo cp -f /etc/kubernetes/admin.conf /home/ubuntu/.kube/config && sudo chown ubuntu:ubuntu /home/ubuntu/.kube/config && export kubever=$(kubectl version | base64 | tr -d '\n') && kubectl apply --kubeconfig /home/ubuntu/.kube/config -f "https://cloud.weave.works/k8s/net?k8s-version=$kubever"
+            register: cniout
+
+          - name: listing the control plane pods
+            shell: kubectl get pods --namespace=kube-system --kubeconfig=/home/ubuntu/.kube/config
+
+          - name: listing the the nodes
+            shell: kubectl get nodes --namespace=kube-system --kubeconfig=/home/ubuntu/.kube/config
+          
+          - name: unitainting the master node
+            shell: kubectl taint nodes --all node-role.kubernetes.io/master- --kubeconfig=/home/ubuntu/.kube/config
+
